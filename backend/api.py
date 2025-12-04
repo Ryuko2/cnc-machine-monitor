@@ -473,10 +473,17 @@ async def startup_event():
     print("=" * 60)
 
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+# Create static directory and copy frontend
+   from pathlib import Path
+   import shutil
+   
+   static_dir = Path("static")
+   static_dir.mkdir(exist_ok=True)
+   
+   frontend_html = Path(__file__).parent.parent / "frontend" / "index.html"
+   if frontend_html.exists():
+       shutil.copy2(frontend_html, static_dir / "index.html")
+   
+   # Mount static files
+   if static_dir.exists():
+       app.mount("/static", StaticFiles(directory="static"), name="static")
