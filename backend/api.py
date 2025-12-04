@@ -449,11 +449,22 @@ async def update_machines_task():
 @app.on_event("startup")
 async def startup_event():
     """Start background update task and initialize DB"""
+    import shutil
+    
     # Initialize database
     init_db()
     
-    # Create static directory if not exists
-    Path("static").mkdir(exist_ok=True)
+    # Create static directory and copy frontend
+    static_dir = Path("static")
+    static_dir.mkdir(exist_ok=True)
+    
+    # Copy index.html from frontend to static
+    frontend_html = Path(__file__).parent.parent / "frontend" / "index.html"
+    if frontend_html.exists():
+        shutil.copy2(frontend_html, static_dir / "index.html")
+        print(f"✅ Copied {frontend_html} to static/")
+    else:
+        print(f"⚠️ Warning: {frontend_html} not found")
     
     # Start background task
     asyncio.create_task(update_machines_task())
@@ -473,17 +484,11 @@ async def startup_event():
     print("=" * 60)
 
 
-# Create static directory and copy frontend
-   from pathlib import Path
-   import shutil
-   
-   static_dir = Path("static")
-   static_dir.mkdir(exist_ok=True)
-   
-   frontend_html = Path(__file__).parent.parent / "frontend" / "index.html"
-   if frontend_html.exists():
-       shutil.copy2(frontend_html, static_dir / "index.html")
-   
-   # Mount static files
-   if static_dir.exists():
-       app.mount("/static", StaticFiles(directory="static"), name="static")
+# Mount static files
+if Path("static").exists():
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000)
