@@ -1,0 +1,39 @@
+FROM python:3.10-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application files
+COPY backend/ ./backend/
+COPY frontend/ ./frontend/
+
+# Create static directory and copy frontend files
+RUN mkdir -p backend/static && \
+    cp frontend/index.html backend/static/
+
+# Create data directory for database
+RUN mkdir -p backend/data
+
+# Set working directory to backend
+WORKDIR /app/backend
+
+# Expose port
+EXPOSE 5000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/machines')" || exit 1
+
+# Run the application
+CMD ["python", "api.py"]

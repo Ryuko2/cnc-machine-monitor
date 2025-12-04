@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  cnc-monitor:
+    build: .
+    container_name: cnc-machine-monitor
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persist database
+      - ./data:/app/backend/data
+      # Optional: Mount custom machine config
+      # - ./custom_haas_machine.py:/app/backend/haas_machine.py
+    environment:
+      - DB_PATH=/app/backend/data/machines_data.db
+      - TZ=America/New_York
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/machines')"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - cnc-network
+
+  # Optional: Nginx reverse proxy
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: cnc-nginx
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - cnc-monitor
+  #   networks:
+  #     - cnc-network
+
+networks:
+  cnc-network:
+    driver: bridge
+
+volumes:
+  data:

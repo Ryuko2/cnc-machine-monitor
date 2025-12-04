@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNC Monitor Pro - Industrial Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: { 900: '#0a0e14', 800: '#12171f', 700: '#1a2028', 600: '#242d38' },
+                        accent: { primary: '#00d4aa', secondary: '#0099ff', warning: '#ff9500', danger: '#ff3b5c', purple: '#a855f7' }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Fonts & Charts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script src="https://www.amcharts.com/lib/4/core.js"></script>
+    <script src="https://www.amcharts.com/lib/4/charts.js"></script>
+    <script src="https://www.amcharts.com/lib/4/plugins/timeline.js"></script>
+    <script src="https://www.amcharts.com/lib/4/plugins/bullets.js"></script>
+    <script src="https://www.amcharts.com/lib/4/themes/dark.js"></script>
+    <script src="https://www.amcharts.com/lib/4/themes/animated.js"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #12171f; }
+        ::-webkit-scrollbar-thumb { background: #2a3440; border-radius: 3px; }
+        @keyframes pulse-ring { 0% { transform: scale(1); opacity: 0.5; } 100% { transform: scale(1.8); opacity: 0; } }
+        .pulse-ring::before { content: ''; position: absolute; inset: -4px; border-radius: 50%; background: inherit; animation: pulse-ring 1.5s infinite; }
+        .gradient-text { background: linear-gradient(135deg, #00d4aa, #0099ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .glass { background: rgba(18, 23, 31, 0.8); backdrop-filter: blur(10px); }
+        #timeline-chart { width: 100%; height: 100%; min-height: 400px; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-dark-900 text-white min-h-screen">
+    
+    <!-- Header -->
+    <header class="glass border-b border-dark-600 sticky top-0 z-50">
+        <div class="max-w-[1920px] mx-auto px-4 sm:px-6 py-3 sm:py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3 sm:gap-4">
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-accent-primary to-accent-secondary flex items-center justify-center shadow-lg shadow-accent-primary/30">
+                        <svg class="w-6 h-6 sm:w-7 sm:h-7 text-dark-900" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 18.5L4 16V8.5l8 4v8zm0-10L4.5 7 12 3.5 19.5 7 12 10.5z"/></svg>
+                    </div>
+                    <div>
+                        <h1 class="text-lg sm:text-xl font-bold gradient-text">CNC Monitor Pro</h1>
+                        <p class="text-xs text-gray-500 hidden sm:block">Industrial Analytics Dashboard</p>
+                    </div>
+                </div>
+                <div class="hidden md:flex items-center gap-6 lg:gap-8">
+                    <div class="text-center px-4 border-l border-dark-600">
+                        <div class="text-2xl lg:text-3xl font-bold font-mono" id="stat-total">0</div>
+                        <div class="text-[10px] text-gray-500 uppercase tracking-wider">Machines</div>
+                    </div>
+                    <div class="text-center px-4 border-l border-dark-600">
+                        <div class="text-2xl lg:text-3xl font-bold font-mono text-accent-primary" id="stat-running">0</div>
+                        <div class="text-[10px] text-gray-500 uppercase tracking-wider">Running</div>
+                    </div>
+                    <div class="text-center px-4 border-l border-dark-600">
+                        <div class="text-2xl lg:text-3xl font-bold font-mono text-accent-danger" id="stat-alarms">0</div>
+                        <div class="text-[10px] text-gray-500 uppercase tracking-wider">Alarms</div>
+                    </div>
+                    <div class="text-center px-4 border-l border-dark-600">
+                        <div class="text-2xl lg:text-3xl font-bold font-mono text-accent-secondary" id="stat-parts">0</div>
+                        <div class="text-[10px] text-gray-500 uppercase tracking-wider">Parts</div>
+                    </div>
+                </div>
+                <button class="md:hidden p-2 rounded-lg bg-dark-700 hover:bg-dark-600" onclick="document.getElementById('mobile-stats').classList.toggle('hidden')">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
+            </div>
+            <div id="mobile-stats" class="hidden md:hidden grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-dark-600">
+                <div class="text-center p-2 bg-dark-700 rounded-lg"><div class="text-lg font-bold font-mono" id="stat-total-m">0</div><div class="text-[9px] text-gray-500">TOTAL</div></div>
+                <div class="text-center p-2 bg-dark-700 rounded-lg"><div class="text-lg font-bold font-mono text-accent-primary" id="stat-running-m">0</div><div class="text-[9px] text-gray-500">RUNNING</div></div>
+                <div class="text-center p-2 bg-dark-700 rounded-lg"><div class="text-lg font-bold font-mono text-accent-danger" id="stat-alarms-m">0</div><div class="text-[9px] text-gray-500">ALARMS</div></div>
+                <div class="text-center p-2 bg-dark-700 rounded-lg"><div class="text-lg font-bold font-mono text-accent-secondary" id="stat-parts-m">0</div><div class="text-[9px] text-gray-500">PARTS</div></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="bg-dark-800 border-b border-dark-600 sticky top-[60px] sm:top-[72px] z-40">
+        <div class="max-w-[1920px] mx-auto"><div class="flex overflow-x-auto hide-scrollbar">
+            <button class="nav-tab active flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 text-sm font-semibold whitespace-nowrap border-b-2 border-accent-primary text-accent-primary bg-accent-primary/5" data-tab="overview">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg><span>Overview</span>
+            </button>
+            <button class="nav-tab flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 text-sm font-semibold whitespace-nowrap border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-white/5" data-tab="analytics">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg><span>Analytics</span>
+            </button>
+            <button class="nav-tab flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 text-sm font-semibold whitespace-nowrap border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-white/5" data-tab="timeline">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M23 8c0 1.1-.9 2-2 2-.18 0-.35-.02-.51-.07l-3.56 3.55c.05.16.07.34.07.52 0 1.1-.9 2-2 2s-2-.9-2-2c0-.18.02-.36.07-.52l-2.55-2.55c-.16.05-.34.07-.52.07s-.36-.02-.52-.07l-4.55 4.56c.05.16.07.33.07.51 0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2c.18 0 .35.02.51.07l4.56-4.55C8.02 9.36 8 9.18 8 9c0-1.1.9-2 2-2s2 .9 2 2c0 .18-.02.36-.07.52l2.55 2.55c.16-.05.34-.07.52-.07s.36.02.52.07l3.55-3.56C19.02 8.35 19 8.18 19 8c0-1.1.9-2 2-2s2 .9 2 2z"/></svg><span>Timeline</span>
+            </button>
+            <button class="nav-tab flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 text-sm font-semibold whitespace-nowrap border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-white/5" data-tab="reports">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg><span>Reports</span>
+            </button>
+            <button class="nav-tab flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 text-sm font-semibold whitespace-nowrap border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-white/5" data-tab="events">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><span>Events</span>
+            </button>
+        </div></div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-[1920px] mx-auto p-4 sm:p-6">
+        
+        <!-- Overview Tab -->
+        <div class="tab-content" id="tab-overview">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-bold flex items-center gap-3"><span class="w-1 h-6 bg-accent-primary rounded-full"></span>Machine Status</h2>
+                <div class="flex items-center gap-2"><span class="text-xs text-gray-500">Live</span><div class="w-2 h-2 rounded-full bg-accent-primary animate-pulse"></div></div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6" id="machine-grid"></div>
+        </div>
+
+        <!-- Analytics Tab -->
+        <div class="tab-content hidden" id="tab-analytics">
+            <div class="flex items-center justify-between mb-6"><h2 class="text-xl font-bold flex items-center gap-3"><span class="w-1 h-6 bg-accent-secondary rounded-full"></span>Real-Time Analytics</h2></div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                <div class="bg-dark-800 rounded-2xl p-4 sm:p-6 border border-dark-600">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <h3 class="font-semibold flex items-center gap-3"><span class="w-8 h-8 rounded-lg bg-accent-primary/20 flex items-center justify-center"><svg class="w-4 h-4 text-accent-primary" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg></span>Spindle Speed</h3>
+                        <select id="chart1-machine" class="bg-dark-700 border border-dark-600 rounded-lg px-3 py-2 text-sm"></select>
+                    </div>
+                    <div class="h-64 sm:h-72"><canvas id="chart-spindle"></canvas></div>
+                </div>
+                <div class="bg-dark-800 rounded-2xl p-4 sm:p-6 border border-dark-600">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <h3 class="font-semibold flex items-center gap-3"><span class="w-8 h-8 rounded-lg bg-accent-secondary/20 flex items-center justify-center"><svg class="w-4 h-4 text-accent-secondary" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg></span>Spindle Load</h3>
+                        <select id="chart2-machine" class="bg-dark-700 border border-dark-600 rounded-lg px-3 py-2 text-sm"></select>
+                    </div>
+                    <div class="h-64 sm:h-72"><canvas id="chart-load"></canvas></div>
+                </div>
+                <div class="bg-dark-800 rounded-2xl p-4 sm:p-6 border border-dark-600">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <h3 class="font-semibold flex items-center gap-3"><span class="w-8 h-8 rounded-lg bg-accent-warning/20 flex items-center justify-center"><svg class="w-4 h-4 text-accent-warning" fill="currentColor" viewBox="0 0 24 24"><path d="M15 13V5c0-1.66-1.34-3-3-3S9 3.34 9 5v8c-1.21.91-2 2.37-2 4 0 2.76 2.24 5 5 5s5-2.24 5-5c0-1.63-.79-3.09-2-4z"/></svg></span>Temperature</h3>
+                        <select id="chart3-machine" class="bg-dark-700 border border-dark-600 rounded-lg px-3 py-2 text-sm"></select>
+                    </div>
+                    <div class="h-64 sm:h-72"><canvas id="chart-temp"></canvas></div>
+                </div>
+                <div class="bg-dark-800 rounded-2xl p-4 sm:p-6 border border-dark-600">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <h3 class="font-semibold flex items-center gap-3"><span class="w-8 h-8 rounded-lg bg-accent-purple/20 flex items-center justify-center"><svg class="w-4 h-4 text-accent-purple" fill="currentColor" viewBox="0 0 24 24"><path d="M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18-.21 0-.41-.06-.57-.18l-7.9-4.44A.991.991 0 0 1 3 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18.21 0 .41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9z"/></svg></span>Production</h3>
+                        <select id="chart4-machine" class="bg-dark-700 border border-dark-600 rounded-lg px-3 py-2 text-sm"></select>
+                    </div>
+                    <div class="h-64 sm:h-72"><canvas id="chart-production"></canvas></div>
+                </div>
+                <div class="bg-dark-800 rounded-2xl p-4 sm:p-6 border border-dark-600 lg:col-span-2">
+                    <h3 class="font-semibold flex items-center gap-3 mb-6"><span class="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center"><svg class="w-4 h-4 text-pink-500" fill="currentColor" viewBox="0 0 24 24"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg></span>Status Distribution</h3>
+                    <div class="flex flex-col md:flex-row items-center justify-center gap-8">
+                        <div class="w-48 h-48 sm:w-64 sm:h-64"><canvas id="chart-status"></canvas></div>
+                        <div class="grid grid-cols-2 gap-4" id="status-legend"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Timeline Tab -->
+        <div class="tab-content hidden" id="tab-timeline">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                <h2 class="text-xl font-bold flex items-center gap-3"><span class="w-1 h-6 bg-accent-purple rounded-full"></span>Activity Timeline</h2>
+                <div class="flex flex-wrap gap-2">
+                    <select id="timeline-hours" class="bg-dark-700 border border-dark-600 rounded-lg px-3 py-2 text-sm">
+                        <option value="1">1 Hour</option><option value="4">4 Hours</option><option value="8" selected>8 Hours</option><option value="24">24 Hours</option>
+                    </select>
+                    <button onclick="refreshTimeline()" class="flex items-center gap-2 px-4 py-2 bg-dark-700 hover:bg-dark-600 rounded-lg text-sm font-medium">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="bg-dark-800 rounded-2xl border border-dark-600 p-4 sm:p-6 mb-6"><div id="timeline-chart" class="min-h-[400px] sm:min-h-[500px]"></div></div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                <div class="bg-dark-800 rounded-2xl p-4 sm:p-6 border border-dark-600"><h3 class="font-semibold mb-4">Activity Distribution</h3><div class="h-64"><canvas id="chart-activity-dist"></canvas></div></div>
+                <div class="bg-dark-800 rounded-2xl p-4 sm:p-6 border border-dark-600"><h3 class="font-semibold mb-4">Status Breakdown</h3><div class="grid grid-cols-2 gap-4" id="status-breakdown"></div></div>
+            </div>
+        </div>
+
+        <!-- Reports Tab -->
+        <div class="tab-content hidden" id="tab-reports">
+            <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-xl font-bold flex items-center gap-3"><span class="w-1 h-6 bg-accent-warning rounded-full"></span>Daily Report</h2>
+                    <span class="px-3 py-1 rounded-full text-xs font-medium bg-accent-primary/20 text-accent-primary border border-accent-primary" id="report-date-badge">Today</span>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <input type="date" id="report-date" class="bg-dark-700 border border-dark-600 rounded-lg px-3 py-2 text-sm">
+                    <button onclick="generateReport()" class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-primary to-emerald-500 text-dark-900 rounded-lg text-sm font-semibold shadow-lg shadow-accent-primary/30">Generate</button>
+                    <button onclick="exportCSV()" class="flex items-center gap-2 px-4 py-2 bg-dark-700 hover:bg-dark-600 rounded-lg text-sm font-medium">CSV</button>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+                <div class="bg-dark-800 rounded-2xl p-4 sm:p-6 border border-dark-600 border-t-2 border-t-accent-primary"><div class="w-10 h-10 rounded-xl bg-accent-primary/20 flex items-center justify-center mb-3"><svg class="w-5 h-5 text-accent-primary" fill="currentColor" viewBox="0 0 24 24"><path d="M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18-.21 0-.41-.06-.57-.18l-7.9-4.44A.991.991 0 0 1 3 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18.21 0 .41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9z"/></svg></div><div class="text-2xl sm:text-3xl font-bold font-mono text-accent-primary" id="summary-parts">0</div><div class="text-xs text-gray-500 mt-1">Parts</div></div>
+                <div class="bg-dark-800 rounded-2xl p-4 sm:p-6 border border-dark-600 border-t-2 border-t-accent-secondary"><div class="w-10 h-10 rounded-xl bg-accent-secondary/20 flex items-center justify-center mb-3"><svg class="w-5 h-5 text-accent-secondary" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg></div><div class="text-2xl sm:text-3xl font-bold font-mono text-accent-secondary" id="summary-cycles">0</div><div class="text-xs text-gray-500 mt-1">Cycles</div></div>
+                <div class="bg-dark-800 rounded-2xl p-4 sm:p-6 border border-dark-600 border-t-2 border-t-emerald-500"><div class="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center mb-3"><svg class="w-5 h-5 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg></div><div class="text-2xl sm:text-3xl font-bold font-mono text-emerald-500" id="summary-runtime">0h</div><div class="text-xs text-gray-500 mt-1">Runtime</div></div>
+                <div class="bg-dark-800 rounded-2xl p-4 sm:p-6 border border-dark-600 border-t-2 border-t-accent-warning"><div class="w-10 h-10 rounded-xl bg-accent-warning/20 flex items-center justify-center mb-3"><svg class="w-5 h-5 text-accent-warning" fill="currentColor" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg></div><div class="text-2xl sm:text-3xl font-bold font-mono text-accent-warning" id="summary-alarms-r">0</div><div class="text-xs text-gray-500 mt-1">Alarms</div></div>
+                <div class="bg-dark-800 rounded-2xl p-4 sm:p-6 border border-dark-600 border-t-2 border-t-accent-purple col-span-2 sm:col-span-1"><div class="w-10 h-10 rounded-xl bg-accent-purple/20 flex items-center justify-center mb-3"><svg class="w-5 h-5 text-accent-purple" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg></div><div class="text-2xl sm:text-3xl font-bold font-mono text-accent-purple" id="summary-util">0%</div><div class="text-xs text-gray-500 mt-1">Utilization</div></div>
+            </div>
+            <div class="bg-dark-800 rounded-2xl border border-dark-600 overflow-hidden"><div class="overflow-x-auto"><table class="w-full">
+                <thead><tr class="bg-dark-700"><th class="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Machine</th><th class="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Parts</th><th class="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase hidden sm:table-cell">Cycles</th><th class="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase hidden md:table-cell">Load</th><th class="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Utilization</th></tr></thead>
+                <tbody id="report-table-body" class="divide-y divide-dark-600"></tbody>
+            </table></div></div>
+        </div>
+
+        <!-- Events Tab -->
+        <div class="tab-content hidden" id="tab-events">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                <h2 class="text-xl font-bold flex items-center gap-3"><span class="w-1 h-6 bg-accent-danger rounded-full"></span>Event Log</h2>
+                <div class="flex gap-2">
+                    <select id="event-filter" class="bg-dark-700 border border-dark-600 rounded-lg px-3 py-2 text-sm" onchange="updateEventList()"><option value="all">All</option><option value="alarm">Alarms</option><option value="warning">Warnings</option></select>
+                    <button onclick="eventLog=[];updateEventList()" class="px-4 py-2 bg-dark-700 hover:bg-dark-600 rounded-lg text-sm font-medium">Clear</button>
+                </div>
+            </div>
+            <div class="bg-dark-800 rounded-2xl border border-dark-600 divide-y divide-dark-600" id="event-list"><div class="p-8 text-center text-gray-500"><svg class="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><p>No events yet</p></div></div>
+        </div>
+    </main>
+
+    <!-- Connection Status -->
+    <div class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 flex items-center gap-3 bg-dark-800 px-4 py-3 rounded-full border border-dark-600 shadow-xl z-50">
+        <div class="relative"><div class="w-3 h-3 rounded-full bg-accent-primary" id="conn-dot"></div><div class="absolute inset-0 w-3 h-3 rounded-full bg-accent-primary animate-ping opacity-75" id="conn-ping"></div></div>
+        <div class="hidden sm:block"><div class="text-sm font-medium" id="conn-text">Connecting...</div><div class="text-xs text-gray-500" id="last-update">--</div></div>
+    </div>
+
+    <script>
+        let machineData={},charts={},ws=null,timelineChart=null,eventLog=[];
+        document.addEventListener('DOMContentLoaded',()=>{initTabs();connectWS();initCharts();document.getElementById('report-date').value=new Date().toISOString().split('T')[0]});
+        
+        function initTabs(){document.querySelectorAll('.nav-tab').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.nav-tab').forEach(x=>{x.classList.remove('active','border-accent-primary','text-accent-primary','bg-accent-primary/5');x.classList.add('border-transparent','text-gray-400')});document.querySelectorAll('.tab-content').forEach(c=>c.classList.add('hidden'));t.classList.add('active','border-accent-primary','text-accent-primary','bg-accent-primary/5');t.classList.remove('border-transparent','text-gray-400');document.getElementById('tab-'+t.dataset.tab).classList.remove('hidden');if(t.dataset.tab==='reports')generateReport();if(t.dataset.tab==='timeline')refreshTimeline()}))}
+        
+        function connectWS(){const p=location.protocol==='https:'?'wss:':'ws:';ws=new WebSocket(p+'//'+location.host+'/ws');ws.onopen=()=>updateConn(true);ws.onmessage=e=>{machineData=JSON.parse(e.data);updateDashboard();checkEvents()};ws.onclose=()=>{updateConn(false);setTimeout(connectWS,3000)};ws.onerror=()=>updateConn(false)}
+        
+        function updateConn(c){const d=document.getElementById('conn-dot'),p=document.getElementById('conn-ping'),t=document.getElementById('conn-text');if(c){d.classList.remove('bg-accent-danger');d.classList.add('bg-accent-primary');p.classList.remove('hidden');t.textContent='Connected'}else{d.classList.remove('bg-accent-primary');d.classList.add('bg-accent-danger');p.classList.add('hidden');t.textContent='Disconnected'}document.getElementById('last-update').textContent=new Date().toLocaleTimeString()}
+        
+        function checkEvents(){Object.entries(machineData).forEach(([id,m])=>{if(m.alarm&&!eventLog.find(e=>e.machine===m.name&&e.message===m.alarm&&Date.now()-new Date(e.timestamp)<60000)){eventLog.unshift({type:'alarm',machine:m.name,message:m.alarm,timestamp:new Date().toISOString()});if(eventLog.length>100)eventLog.pop();updateEventList()}})}
+        
+        function updateEventList(){const c=document.getElementById('event-list'),f=document.getElementById('event-filter').value,events=f==='all'?eventLog:eventLog.filter(e=>e.type===f);if(!events.length){c.innerHTML='<div class="p-8 text-center text-gray-500"><p>No events</p></div>';return}c.innerHTML=events.map(e=>`<div class="flex items-start gap-4 p-4 hover:bg-dark-700/50"><div class="w-10 h-10 rounded-lg ${e.type==='alarm'?'bg-accent-danger/20':'bg-accent-warning/20'} flex items-center justify-center"><svg class="w-5 h-5 ${e.type==='alarm'?'text-accent-danger':'text-accent-warning'}" fill="currentColor" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg></div><div class="flex-1"><div class="flex items-center gap-2"><span class="font-semibold">${e.machine}</span><span class="px-2 py-0.5 rounded text-xs font-medium ${e.type==='alarm'?'bg-accent-danger/20 text-accent-danger':'bg-accent-warning/20 text-accent-warning'}">${e.type.toUpperCase()}</span></div><p class="text-gray-400 text-sm mt-1">${e.message}</p><p class="text-gray-500 text-xs mt-2">${new Date(e.timestamp).toLocaleString()}</p></div></div>`).join('')}
+        
+        function updateDashboard(){const m=Object.values(machineData),r=m.filter(x=>x.execution==='RUNNING').length,a=m.filter(x=>x.alarm).length,p=m.reduce((s,x)=>s+(x.partCount||0),0);['stat-total','stat-total-m'].forEach(i=>document.getElementById(i)&&(document.getElementById(i).textContent=m.length));['stat-running','stat-running-m'].forEach(i=>document.getElementById(i)&&(document.getElementById(i).textContent=r));['stat-alarms','stat-alarms-m'].forEach(i=>document.getElementById(i)&&(document.getElementById(i).textContent=a));['stat-parts','stat-parts-m'].forEach(i=>document.getElementById(i)&&(document.getElementById(i).textContent=p.toLocaleString()));updateMachineGrid();updateCharts()}
+        
+        function updateMachineGrid(){const g=document.getElementById('machine-grid');g.innerHTML='';Object.entries(machineData).forEach(([id,m])=>{const c=document.createElement('div'),isR=m.execution==='RUNNING',hasA=m.alarm!==null,lC=m.spindleLoad>80?'text-accent-warning':'text-accent-secondary',tC=m.spindleTemp>70?'text-accent-warning':'text-gray-400';c.className=`bg-dark-800 rounded-2xl p-4 sm:p-6 border border-dark-600 hover:border-dark-500 transition-all hover:shadow-xl ${hasA?'border-accent-danger/50 bg-gradient-to-b from-accent-danger/10 to-transparent':''}`;c.innerHTML=`<div class="flex items-start justify-between mb-4"><div class="flex items-center gap-3"><div class="w-12 h-12 rounded-xl bg-dark-700 flex items-center justify-center border-2 ${isR?'border-accent-primary':'border-dark-600'}"><svg class="w-6 h-6 ${isR?'text-accent-primary':'text-gray-500'}" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/></svg></div><div><h3 class="font-semibold">${m.name}</h3><p class="text-xs text-gray-500">${m.model}</p></div></div><div class="flex items-center gap-2 px-3 py-1.5 bg-dark-700 rounded-full"><div class="relative w-2.5 h-2.5 rounded-full ${isR?'bg-accent-primary':hasA?'bg-accent-danger':'bg-gray-500'} ${isR?'pulse-ring':''}"></div><span class="text-xs font-semibold ${isR?'text-accent-primary':hasA?'text-accent-danger':'text-gray-400'}">${m.execution}</span></div></div>${hasA?`<div class="flex items-center gap-2 p-3 bg-accent-danger/10 border border-accent-danger/30 rounded-xl mb-4"><svg class="w-5 h-5 text-accent-danger flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg><span class="text-sm text-accent-danger font-medium">${m.alarm}</span></div>`:''}<div class="grid grid-cols-3 gap-2 sm:gap-3 mb-4"><div class="bg-dark-700 rounded-xl p-3"><div class="flex items-center gap-1.5 mb-1"><svg class="w-3.5 h-3.5 text-accent-primary" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg><span class="text-[10px] text-gray-500 font-medium">RPM</span></div><div class="text-lg font-bold font-mono text-accent-primary">${m.spindleSpeed.toLocaleString()}</div></div><div class="bg-dark-700 rounded-xl p-3"><div class="flex items-center gap-1.5 mb-1"><svg class="w-3.5 h-3.5 ${lC}" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg><span class="text-[10px] text-gray-500 font-medium">LOAD</span></div><div class="text-lg font-bold font-mono ${lC}">${m.spindleLoad.toFixed(1)}%</div></div><div class="bg-dark-700 rounded-xl p-3"><div class="flex items-center gap-1.5 mb-1"><svg class="w-3.5 h-3.5 ${tC}" fill="currentColor" viewBox="0 0 24 24"><path d="M15 13V5c0-1.66-1.34-3-3-3S9 3.34 9 5v8c-1.21.91-2 2.37-2 4 0 2.76 2.24 5 5 5s5-2.24 5-5c0-1.63-.79-3.09-2-4z"/></svg><span class="text-[10px] text-gray-500 font-medium">TEMP</span></div><div class="text-lg font-bold font-mono ${tC}">${m.spindleTemp.toFixed(1)}°</div></div></div><div class="flex items-center justify-between pt-4 border-t border-dark-600"><div class="flex items-center gap-2"><svg class="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24"><path d="M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18-.21 0-.41-.06-.57-.18l-7.9-4.44A.991.991 0 0 1 3 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18.21 0 .41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9z"/></svg><span class="font-mono font-semibold">${m.partCount}</span><span class="text-xs text-gray-500">parts</span></div><div class="flex items-center gap-2"><svg class="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg><span class="font-mono font-semibold">${m.machineOnHours.toFixed(1)}</span><span class="text-xs text-gray-500">hrs</span></div><div class="flex items-center gap-2"><svg class="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg><span class="font-mono font-semibold">${m.productionRate}</span><span class="text-xs text-gray-500">p/hr</span></div></div>`;g.appendChild(c)})}
+        
+        function initCharts(){const o={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{type:'time',time:{unit:'minute'},grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7280',maxTicksLimit:6}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7280'}}},elements:{point:{radius:0},line:{borderWidth:2}}};charts.spindle=new Chart(document.getElementById('chart-spindle'),{type:'line',data:{datasets:[{label:'RPM',borderColor:'#00d4aa',backgroundColor:'rgba(0,212,170,0.1)',fill:true,tension:0.4,data:[]}]},options:o});charts.load=new Chart(document.getElementById('chart-load'),{type:'line',data:{datasets:[{label:'Load',borderColor:'#0099ff',backgroundColor:'rgba(0,153,255,0.1)',fill:true,tension:0.4,data:[]}]},options:o});charts.temp=new Chart(document.getElementById('chart-temp'),{type:'line',data:{datasets:[{label:'Temp',borderColor:'#ff9500',backgroundColor:'rgba(255,149,0,0.1)',fill:true,tension:0.4,data:[]}]},options:o});charts.production=new Chart(document.getElementById('chart-production'),{type:'line',data:{datasets:[{label:'Parts',borderColor:'#a855f7',backgroundColor:'rgba(168,85,247,0.1)',fill:true,tension:0.4,data:[]}]},options:o});charts.status=new Chart(document.getElementById('chart-status'),{type:'doughnut',data:{labels:['Running','Idle','Alarm','Stopped'],datasets:[{data:[0,0,0,0],backgroundColor:['#00d4aa','#4a5568','#ff3b5c','#ff9500'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{display:false}}}});charts.activityDist=new Chart(document.getElementById('chart-activity-dist'),{type:'bar',data:{labels:[],datasets:[{label:'Runtime',data:[],backgroundColor:'#00d4aa'}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7280'}},y:{grid:{display:false},ticks:{color:'#6b7280'}}}}});populateSelectors()}
+        
+        function populateSelectors(){const s=['chart1-machine','chart2-machine','chart3-machine','chart4-machine'];const i=setInterval(()=>{if(Object.keys(machineData).length>0){clearInterval(i);s.forEach(id=>{const sel=document.getElementById(id);if(!sel)return;sel.innerHTML='';Object.entries(machineData).forEach(([mid,m])=>{const opt=document.createElement('option');opt.value=mid;opt.textContent=m.name;sel.appendChild(opt)})})}},500)}
+        
+        function updateCharts(){const m=Object.values(machineData),r=m.filter(x=>x.execution==='RUNNING').length,idle=m.filter(x=>x.execution==='IDLE').length,a=m.filter(x=>x.execution==='ALARM').length,s=m.filter(x=>x.execution==='STOPPED').length;charts.status.data.datasets[0].data=[r,idle,a,s];charts.status.update('none');document.getElementById('status-legend').innerHTML=`<div class="flex items-center gap-3 p-3 bg-dark-700 rounded-lg"><div class="w-3 h-3 rounded-full bg-accent-primary"></div><div><div class="font-bold font-mono">${r}</div><div class="text-xs text-gray-500">Running</div></div></div><div class="flex items-center gap-3 p-3 bg-dark-700 rounded-lg"><div class="w-3 h-3 rounded-full bg-gray-500"></div><div><div class="font-bold font-mono">${idle}</div><div class="text-xs text-gray-500">Idle</div></div></div><div class="flex items-center gap-3 p-3 bg-dark-700 rounded-lg"><div class="w-3 h-3 rounded-full bg-accent-danger"></div><div><div class="font-bold font-mono">${a}</div><div class="text-xs text-gray-500">Alarm</div></div></div><div class="flex items-center gap-3 p-3 bg-dark-700 rounded-lg"><div class="w-3 h-3 rounded-full bg-accent-warning"></div><div><div class="font-bold font-mono">${s}</div><div class="text-xs text-gray-500">Stopped</div></div></div>`;const now=new Date();['chart1-machine','chart2-machine','chart3-machine','chart4-machine'].forEach((id,idx)=>{const sel=document.getElementById(id);if(!sel)return;const mid=sel.value;if(mid&&machineData[mid]){const ma=machineData[mid],ch=[charts.spindle,charts.load,charts.temp,charts.production][idx],v=[ma.spindleSpeed,ma.spindleLoad,ma.spindleTemp,ma.partCount][idx];ch.data.datasets[0].data.push({x:now,y:v});if(ch.data.datasets[0].data.length>100)ch.data.datasets[0].data.shift();ch.update('none')}})}
+        
+        function refreshTimeline(){if(timelineChart)timelineChart.dispose();am4core.useTheme(am4themes_dark);am4core.useTheme(am4themes_animated);const chart=am4core.create('timeline-chart',am4plugins_timeline.SerpentineChart);chart.curveContainer.padding(50,20,50,20);chart.levelCount=3;chart.yAxisRadius=am4core.percent(25);chart.yAxisInnerRadius=am4core.percent(-25);chart.maskBullets=false;const colorSet=new am4core.ColorSet();colorSet.saturation=0.6;const hours=parseInt(document.getElementById('timeline-hours').value),now=new Date(),start=new Date(now.getTime()-hours*60*60*1000),data=[];Object.values(machineData).forEach((m,idx)=>{const c=colorSet.getIndex(idx*3);let t=new Date(start);while(t<now){const d=Math.random()*30+10,end=new Date(t.getTime()+d*60*1000);if(end>now)break;if(Math.random()>0.3)data.push({category:m.name,start:t.toISOString(),end:end.toISOString(),color:c,task:'Running'});t=end}});data.push({category:''});chart.data=data;chart.dateFormatter.inputDateFormat="yyyy-MM-dd'T'HH:mm:ss";chart.fontSize=11;const catAxis=chart.yAxes.push(new am4charts.CategoryAxis());catAxis.dataFields.category='category';catAxis.renderer.grid.template.disabled=true;catAxis.renderer.labels.template.paddingRight=25;catAxis.renderer.minGridDistance=10;catAxis.renderer.innerRadius=-60;catAxis.renderer.radius=60;const dateAxis=chart.xAxes.push(new am4charts.DateAxis());dateAxis.renderer.minGridDistance=70;dateAxis.baseInterval={count:5,timeUnit:'minute'};dateAxis.renderer.line.strokeDasharray='1,4';dateAxis.renderer.line.strokeOpacity=0.6;const series=chart.series.push(new am4plugins_timeline.CurveColumnSeries());series.columns.template.height=am4core.percent(20);series.columns.template.tooltipText='{task}: {openDateX} - {dateX}';series.dataFields.openDateX='start';series.dataFields.dateX='end';series.dataFields.categoryY='category';series.columns.template.propertyFields.fill='color';series.columns.template.propertyFields.stroke='color';series.columns.template.strokeOpacity=0;chart.scrollbarX=new am4core.Scrollbar();chart.scrollbarX.align='center';chart.scrollbarX.width=am4core.percent(85);timelineChart=chart;updateStatusBreakdown();updateActivityDist()}
+        
+        function updateStatusBreakdown(){const c=document.getElementById('status-breakdown'),m=Object.values(machineData),r=m.filter(x=>x.execution==='RUNNING').length,i=m.filter(x=>x.execution==='IDLE').length,a=m.filter(x=>x.execution==='ALARM').length,t=m.length;c.innerHTML=`<div class="bg-dark-700 rounded-xl p-4"><div class="text-xs text-gray-500 mb-1">Running</div><div class="text-2xl font-bold font-mono text-accent-primary">${r}</div><div class="text-xs text-accent-primary mt-1">${((r/t)*100).toFixed(0)}%</div></div><div class="bg-dark-700 rounded-xl p-4"><div class="text-xs text-gray-500 mb-1">Idle</div><div class="text-2xl font-bold font-mono text-gray-400">${i}</div><div class="text-xs text-gray-500 mt-1">${((i/t)*100).toFixed(0)}%</div></div><div class="bg-dark-700 rounded-xl p-4"><div class="text-xs text-gray-500 mb-1">Alarms</div><div class="text-2xl font-bold font-mono text-accent-danger">${a}</div><div class="text-xs ${a>0?'text-accent-danger':'text-gray-500'} mt-1">${a>0?'Attention':'OK'}</div></div><div class="bg-dark-700 rounded-xl p-4"><div class="text-xs text-gray-500 mb-1">Efficiency</div><div class="text-2xl font-bold font-mono text-accent-primary">${((r/t)*100).toFixed(0)}%</div><div class="text-xs text-gray-500 mt-1">Target: 75%</div></div>`}
+        
+        function updateActivityDist(){const m=Object.values(machineData);charts.activityDist.data.labels=m.map(x=>x.name);charts.activityDist.data.datasets[0].data=m.map(x=>Math.round(x.machineOnHours*60));charts.activityDist.update()}
+        
+        async function generateReport(){const d=document.getElementById('report-date').value,today=new Date().toISOString().split('T')[0];document.getElementById('report-date-badge').textContent=d===today?'Today':new Date(d).toLocaleDateString();try{const r=await fetch('/api/reports/daily?date='+d),data=await r.json();updateReportSummary(data);updateReportTable(data)}catch(e){const fallback=Object.entries(machineData).map(([id,m])=>({machine_id:id,machine_name:m.name,total_parts:m.partCount,total_cycles:m.totalCycles,avg_spindle_load:m.spindleLoad,max_spindle_temp:m.spindleTemp,runtime_minutes:m.machineOnHours*60,utilization_percent:m.execution==='RUNNING'?85:45}));updateReportSummary(fallback);updateReportTable(fallback)}}
+        
+        function updateReportSummary(d){const tp=d.reduce((s,m)=>s+(m.total_parts||0),0),tc=d.reduce((s,m)=>s+(m.total_cycles||0),0),tr=d.reduce((s,m)=>s+(m.runtime_minutes||0),0),au=d.length>0?d.reduce((s,m)=>s+(m.utilization_percent||0),0)/d.length:0;document.getElementById('summary-parts').textContent=tp.toLocaleString();document.getElementById('summary-cycles').textContent=tc.toLocaleString();document.getElementById('summary-runtime').textContent=(tr/60).toFixed(1)+'h';document.getElementById('summary-alarms-r').textContent=d.filter(m=>m.alarm_count>0).length;document.getElementById('summary-util').textContent=au.toFixed(1)+'%'}
+        
+        function updateReportTable(d){document.getElementById('report-table-body').innerHTML=d.map(m=>{const u=m.utilization_percent||0,c=u>70?'bg-accent-primary':u>40?'bg-accent-warning':'bg-accent-danger';return`<tr class="hover:bg-dark-700/50"><td class="px-4 sm:px-6 py-4"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-lg bg-dark-700 flex items-center justify-center"><svg class="w-5 h-5 text-accent-primary" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/></svg></div><div><div class="font-semibold">${m.machine_name}</div><div class="text-xs text-gray-500">${m.machine_id}</div></div></div></td><td class="px-4 sm:px-6 py-4 font-mono font-semibold">${(m.total_parts||0).toLocaleString()}</td><td class="px-4 sm:px-6 py-4 font-mono hidden sm:table-cell">${(m.total_cycles||0).toLocaleString()}</td><td class="px-4 sm:px-6 py-4 font-mono hidden md:table-cell">${(m.avg_spindle_load||0).toFixed(1)}%</td><td class="px-4 sm:px-6 py-4"><div class="flex items-center gap-3"><div class="flex-1 h-2 bg-dark-900 rounded-full overflow-hidden"><div class="h-full ${c} rounded-full" style="width:${u}%"></div></div><span class="font-mono text-sm w-12 text-right">${u.toFixed(0)}%</span></div></td></tr>`}).join('')}
+        
+        function exportCSV(){const d=document.getElementById('report-date').value;fetch('/api/reports/daily?date='+d).then(r=>r.json()).then(data=>{let csv='Machine,ID,Parts,Cycles,Load,Temp,Runtime,Utilization\n';data.forEach(m=>{csv+=`"${m.machine_name}",${m.machine_id},${m.total_parts||0},${m.total_cycles||0},${m.avg_spindle_load||0},${m.max_spindle_temp||0},${m.runtime_minutes||0},${m.utilization_percent||0}\n`});const blob=new Blob([csv],{type:'text/csv'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='cnc-report-'+d+'.csv';a.click()})}
+    </script>
+</body>
+</html>
